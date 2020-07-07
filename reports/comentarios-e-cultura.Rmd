@@ -10,7 +10,6 @@ theme: sandstone
 library(tidyverse)
 library(here)
 library(viridis)
-source(here::here("code/lib.R"))
 theme_set(theme_bw())
 
 knitr::opts_chunk$set(tidy = FALSE,
@@ -31,8 +30,11 @@ dados = read_csv(
         six_regions = col_character(),
         `World bank income group 2017` = col_character()
     )
-) %>% 
-    filter(usuarios > 200)
+) %>% filter(usuarios > 250)
+
+filtered <- dados %>% 
+    filter(!is.na(usuarios),!is.na(Internet),!is.na(comentaram_prop),!is.na(six_regions))
+
 glimpse(dados)
 ```
 
@@ -44,11 +46,101 @@ Considerando essa variável, queremos examinar a relação entre ela e o quão h
 
 Faça uma visualização que usa os princípios de eficácia no projeto de visualizações para facilitar as comparações que você acha que são as mais importantes para entendermos esse contexto. 
 
+```{r}
+    ggplot(filtered, mapping = aes(x = PDI, y = comentaram_prop, color = Internet, size = usuarios)) +
+    geom_point(alpha = .6) +
+    facet_grid(~site, scales = "free_x") + 
+    labs(x = "PDI", y = "Pessoas que comentaram assuntos de outros países (%)")
+```
+
+Pelo alinhamento dos pontos no gráfico, pode-se perceber que há alguma relação entre as variáveis com a porcentagem de pessoas que comentaram assuntos de outros. A seguir, vamos calcular os valores de correlação e ver como estas relações se comportam.
+
+```{r echo=TRUE}
+corrPDI <- filtered %>% 
+    summarise(pearson = cor(comentaram_prop, PDI, method = "pearson"),
+              kendall = cor(comentaram_prop, PDI, method = "kendall"),
+              spearman = cor(comentaram_prop, PDI, method = "spearman"))
+corrPDI
+```
+
+Os valores de correlação entre **comentaram_prop** e **PDI** mostram uma relação linear razoável negativamente entre as variáveis, o que indica que quanto maior o número de pessoas que comentaram sobre outros países, menor se torna o PDI, o que indica que as pessoas se esforçam para igualar a distribuição do poder e exigir justificativa para as desigualdades de poder.
+
+```{r echo=TRUE}
+corrNet <- filtered %>% 
+    summarise(pearson = cor(comentaram_prop, Internet, method = "pearson"),
+              kendall = cor(comentaram_prop, Internet, method = "kendall"),
+              spearman = cor(comentaram_prop, Internet, method = "spearman"))
+corrNet
+```
+
+Todas as correlações entre **comentaram_prop** e **Internet** mostram uma relação linear razoável positiva (entre 0.4 e 0.7), o que indica que a porcentagem de pessoas que comentaram assuntos de outros países está diretamente relacionado com a quantidade de pessoas que possuem internet.
+
+```{r echo=TRUE}
+corrNet <- filtered %>% 
+    summarise(pearson = cor(comentaram_prop, usuarios, method = "pearson"),
+              kendall = cor(comentaram_prop, usuarios, method = "kendall"),
+              spearman = cor(comentaram_prop, usuarios, method = "spearman"))
+corrNet
+```
+
+Todas as correlações entre **comentaram_prop** e **usuarios** são bem próximos de zero, mostrando uma relação linear fraca positiva, o que nos diz que é bem difícil a porcentagem de pessoas que comentaram assuntos de outros países ter relação com o tamanho da base de dados.
+
 ## Outras formas de ver
 
 Em seguida, faça 5 visualizações que usem as mesmas variáveis e também pontos, mas que sejam **menos eficazes** que a que você escolheu acima. 
+
+```{r}
+    ggplot(filtered, mapping = aes(x = comentaram_prop, y = PDI)) +
+    geom_line() +
+    geom_point(aes(color = Internet, size = usuarios)) +
+    labs(x = "Proporção de pessoas que comentaram assuntos de outros países (%)", y = "PDI")
+```
+
+As linhas estão muito juntas e não é possível identificar com clareza a qual aresta a bolinha pertence.
+
+```{r}
+    dados %>%
+    ggplot(aes(x = comentaram_prop, y = PDI, color = Internet, size = usuarios)) +
+    scale_color_distiller(palette="Pastel1") +
+    geom_point(alpha = 0.7) +
+    scale_x_discrete() +
+    labs(x = "Proporção de pessoas que comentaram assuntos de outros países (%)", y = "PDI")
+```
+
+As bolinhas estão muito sobrepostas em cima das outras não permitindo uma visão clara dos pontos e as cores estão muito claras.
+
+```{r}
+    filtered %>% na.omit() %>% 
+    ggplot(aes(x = PDI, y = comentaram_prop, shape = six_regions, size = Internet)) +
+    geom_point(alpha = .7) +
+    labs(x = "PDI", y = "Pessoas que comentaram assuntos de outros países (%)")
+```
+
+Mesmo problema do plot anterior as formas estão muito sobrepostas e são da mesma cor, podendo cobrir formas menores, impendindo uma visualização clara em algumas áreas.
+
+```{r}
+    ggplot(filtered, mapping = aes(fill=usuarios, x = PDI, y = country)) +
+    geom_bar(position = "dodge", stat="identity") +
+    labs(x = "PDI", y = "Países")
+```
+
+Nesta visualização, podemos ver que os nomes dos países estão muito próximos e os dados não estão ordenados, tornando a leitura mais difícil.
+
+```{r}
+ggplot(filtered, aes(x = PDI, y = comentaram_prop, color = site, size = usuarios)) + geom_point(alpha = .6) +
+    labs(x = "PDI", y = "Pessoas que comentaram assuntos de outros países (%)")
+```
+
+A visualização mostra os dados dos sites no mesmo gráfico o que pode fazer com que as bolinhas se sobreponham, atrapalhando a interpretação da imagem.
 
 ## Bônus
 
 Inclua o continente dos países (`six_regions`) na visualização.
 
+```{r}
+    ggplot(filtered, mapping = aes(x = comentaram_prop, y = PDI, color = Internet, size = usuarios)) + geom_point(alpha = .6) +
+    labs(x = "Proporção de pessoas que comentaram assuntos de outros países (%)", y = "PDI") + scale_color_distiller(palette="RdYlGn") +
+    facet_wrap(~six_regions)
+```
+
+Na África e no Sul da Ásia a porcentagem de pessoas que comentaram assuntos de outros países é muito pequena para PDI's muito altos, enquanto que, na Ásia Central e Oeste esse número é assim, assim como o número de usuários que tem internet, e os níveis de PDI são bem equilibrados. Pode-se perceber um padrão linear em alguns gráficos, onde a portcentagem é menor o nível de PDI é alto, ou seja as pessoas não se impõem tanto assim para combater a desigualdade de poder.
